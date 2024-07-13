@@ -130,6 +130,7 @@ class EBest:
         TR: t8436 코스피, 코스닥의 종목 리스트를 가져온다
         :return result:list 시장별 종목 리스트
         """
+
         if market != "ALL" and market != "KOSPI" and market != "KOSDAQ":
             raise Exception("Need to market param(ALL, KOSPI, KOSDAQ)")
         
@@ -143,6 +144,188 @@ class EBest:
                                      **in_params)
         
         return result
+    
+
+    # 계좌 금액을 조회하는 API
+    def get_account_info(self):
+        """ TR: CSPAQ12200 현물계좌 예수금/ 주문가능금액/ 총평가 조회 (API)
+        :return result:list field CSPAQ12200 참고
+        """
+
+        in_params = {"RecCnt":1, "AcntNo": self.account, "Pwd": self.passwd}
+        out_params = {"MnyOrdAbleAmt", "BalEvalAmt", "DpsastTotamp", "InvstOrgAmt", "InvstPlAmt", "Dps"}
+
+        result = self._execute_query("CSPAQ12200",
+                                     "CSPAQ12200InBlock1",
+                                     "CSPAQ12200OutBlock2",
+                                     *out_params,
+                                     **in_params)
+        return result
+
+
+    def get_account_stock_info(self):
+        """ TR: CSPAQ12300 현물계좌 잔고내역 조회
+        :return result:list 계좌 보유 종목 정보
+        """
+
+        in_params = {"RecCnt":1, "AcntNo": self.account, "Pwd": self.passwd, "BalCreTp": "0",
+                     "CmsnAppTpCode": "0", "D2balBaseQryTp": "0", "UprcTpCode": "0"}
+        out_params = {"IsuNo", "IsuNm", "BalQty", "SellPrc", "BuyPrc", "NowPrc", "AvrUprc", "BalEvalAmt", "PrdayCprc"}
+        
+        result = self._execute_query("CSPAQ12300",
+                                     "CSPAQ12300InBlock1",
+                                     "CSPAQ12300OutBlock3",
+                                     *out_params,
+                                     **in_params)
+        
+        return result
+
+
+    def order_stock(self, code, qty, price, bns_type, order_type):
+        """ TR: CSPAT00600 현물 정상 주문
+        :param bns_type:str 매매타입, 1: 매도, 2:매수
+        :param order_type:str 호가유형,
+            00:지정가, 03:시장가, 05:조건부지정자, 07:최우선지정가
+            61:장개시전시간외 종가, 81:시간외종가, 82:시간외단일가
+        :return result:dict 주문 관련 정보
+        """
+        in_params = {"AcntNo":self.account, "InptPwd":self.passwd, "IsuNo":code, "OrdQty":qty,
+                     "OrdPrc":price, "BnsTpCode":bns_type, "OrdprcPtnCode":order_type, "MgntrnCode":"000", "LoanDt":"", "OrdCndiTpCode":"0"}
+        out_params = ["OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode", "ShtnIsuNo", "MgempNo", "OrdAmt", "SpotOrdQty", "IsuNm"]
+
+        result = self._execute_query("CSPAT00600",
+                                     "CSPAT00600OutBlock1",
+                                     "CSPAT00600OutBlock2",
+                                     *out_params,
+                                     **in_params)
+        
+        return result
+    
+    def order_cancel(self, order_no, code, qty):
+        """ TR: CSPAT00800 현물 취소주문
+        :param order_no:str 주문번호
+        :param code:str 종목코드
+        :param qty:str 최소 수량
+        :param result:dict 취소 결과
+        """
+
+        in_params = {"OrdOrdNo":order_no, "AcntNo":self.account, "InptPwd":self.passwd, "IsoNo":code, "OrdQty":qty}
+        out_params = {"OrdNo", "PrntOrdNo", "OrdTime", "OrdPtnCode", "IsuNm"}
+
+        result = self._execute_query("CSPAT00800",
+                                     "CSPAT00800InBlock1",
+                                     "CSPAT00800OutBlock2",
+                                     *out_params,
+                                     **in_params)
+        
+        return result
+    
+
+
+    def order_check(self, order_no=None):
+        """TR: t0425 주식 체결/미체결
+        :param code:str 종목코드
+        :param order_no:str 주문번호
+        :return result:dict 주문번호의 체결상태
+        """
+        in_params = {"accno": self.account, "passwd": self.passwd, "expcode": "", 
+                    "chegb":"0", "medosu":"0", "sortgb":"1", "cts_ordno":" "}
+        out_params = ["ordno", "expcode", "medosu", "qty", "price", "cheqty", "cheprice", "ordrem", "cfmqty", "status", "orgordno", "ordgb", "ordermtd", "sysprocseq", "hogagb", "price1", "orggb", "singb", "loandt"]
+        result_list = self._execute_query("t0425",
+                                    "t0425InBlock",
+                                    "t0425OutBlock1",
+                                    *out_params,
+                                    **in_params)
+        
+        result = {}
+        if order_no is not None:
+            for item in result_list:
+                if item["주문번호"] == order_no:
+                    result = item
+            return result
+        else:
+            return result_list
+        
+    
+    def order_check2(self, date, code, order_no=None):
+        #CSPAQ13700
+        print("get_order_check, ", order_no)
+        in_params = {"RecCnt":"1", "AcntNo":self.account, "InptPwd":self.passwd, "OrdMktCode":"00", 
+                    "BnsTpCode":"0", "IsuNo":code, "ExecYn":"0", "OrdDt":date, "SrtOrdNo2":"0", 
+                    "BkseqTpCode":"0", "OrdPtnCode":"00"}
+
+        out_params_3 = ["OrdDt", "OrdMktCode", "OrdNo", "OrgOrdNo", "IsuNo", 
+                     "IsuNm", "BnsTpCode", "BnsTpNm", "OrdPtnCode", "OrdPtnNm", 
+                     "MrcTpCode", "OrdQty", "OrdPrc", "ExecQty", "ExecPrc", "LastExecTime", 
+                     "OrdprcPtnCode", "OrdprcPtnNm", "AllExecQty", "OrdTime"]
+        result_list = self._execute_query("CSPAQ13700",
+                                    "CSPAQ13700InBlock1",
+                                    "CSPAQ13700OutBlock3",
+                                    *out_params_3,
+                                    **in_params)
+        
+        result = {}
+        print("get_order_check result len", len(result_list))
+        if order_no is not None:
+            for item in result_list:
+                if item["주문번호"] == order_no:
+                    result = item
+            return result
+        else:
+            return result_list
+
+
+    def get_current_call_price_by_code(self, code=None):
+        """TR: t1101 주식 현재가 호가 조회
+        :param code:str 종목코드
+        """
+        tr_code = "t1101"
+        in_params = {"shcode": code}
+        out_params =["hname", "price", "sign", "change", "diff", "volume", 
+            "jnilclose", "offerho1","bidho1", "offerrem1", "bidrem1",
+            "offerho2","bidho2", "offerrem2", "bidrem2",
+            "offerho3","bidho3", "offerrem3", "bidrem3",
+            "offerho4","bidho4", "offerrem4", "bidrem4",
+            "offerho5","bidho5", "offerrem5", "bidrem5",
+            "offerho6","bidho6", "offerrem6", "bidrem6",
+            "offerho7","bidho7", "offerrem7", "bidrem7",
+            "offerho8","bidho8", "offerrem8", "bidrem8",
+            "offerho9","bidho9", "offerrem9", "bidrem9",
+            "offerho10","bidho10", "offerrem10", "bidrem10",
+            "preoffercha10", "prebidcha10", "offer", "bid",
+            "preoffercha", "prebidcha", "hotime", "yeprice", "yevolume",
+            "yesign", "yechange", "yediff", "tmoffer", "tmbid", "ho_status",
+            "shcode", "uplmtprice", "dnlmtprice", "open", "high", "low"]
+
+        result = self._execute_query("t1101", 
+                                "t1101InBlock", 
+                                "t1101OutBlock",
+                                *out_params,
+                                **in_params)
+
+        for item in result:
+            item["code"] = code
+
+        return result
+
+
+    def get_tick_size(self, price):
+        """호가 단위 조회 메소드
+        참고:    
+        http://regulation.krx.co.kr/contents/RGL/03/03010100/RGL03010100.jsp#8339ae36256c1f6cffd910cd71e4dc85=3
+        http://regulation.krx.co.kr/contents/RGL/03/03020100/RGL03020100.jsp
+ 
+        :param price:int 가격
+        :return 호가 단위
+        """
+        if price < 1000: return 1
+        elif price >=1000 and price < 5000: return 5
+        elif price >=5000 and price < 10000: return 10
+        elif price >=10000 and price < 50000: return 50
+        elif price >=50000 and price < 100000: return 100
+        elif price >=100000 and price < 500000: return 500
+        elif price >=500000: return 1000
+
 
 
 
