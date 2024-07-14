@@ -17,7 +17,7 @@ class MongoDBHandler:
         config = configparser.ConfigParser()
         config.read('conf/config.ini')
         host = config['MONGODB']['host']
-        port = config['MONGODb']['port']
+        port = config['MONGODB']['port']
 
         self._client = MongoClient(host, int(port))
 
